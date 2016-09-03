@@ -70,32 +70,90 @@ class Storage(object):
         return self.dbfile.closed
 
     def close(self):
+        '''
+        close dbfile
+        :return:
+        '''
         self.unlock()
         self.dbfile.close()
 
     def _integer_to_bytes(self, integer):
+        '''
+        trans integers to bytes
+        :param integer: integer from data
+        :return:
+        '''
         return struct.pack(self.integer_format, integer)
 
     def _write_integer(self, integer):
-        self.lock()
+        '''
+        write integer->bytes into dbfile
+        :param integer: integer from data
+        :return:
+        '''
         self.dbfile.write(self._integer_to_bytes(integer))
 
     def write(self, data):
+        '''
+        write data into dbfile
+        :param data:
+        :return:
+        '''
         self.lock()
         self._seek_end()
         object_address = self.dbfile.tell()
         self._write_integer(len(data))
         self.dbfile.write(data)
+        self.unlock()
         return object_address
 
     def _bytes_to_integer(self, integer_bytes):
+        '''
+        trans bytes to integer tuple
+        :param integer_bytes: bytes from dbfile
+        :return:
+        '''
         return struct.unpack(self.integer_format, integer_bytes)[0]
 
     def _read_integer(self):
+        '''
+        read bytes->integer from dbfile
+        :return:
+        '''
         return self._bytes_to_integer(self.dbfile.read(self.integer_length))
 
     def read(self, address):
+        '''
+        read data from dbfile
+        :param address: read start address
+        :return:
+        '''
         self.dbfile.seek(address)
         length = self._read_integer()
         data = self.dbfile.read(length)
         return data
+
+    def commit_root_address(self, root_address):
+        '''
+        commit changes
+        :param root_address: data root address
+        :return:
+        '''
+        self.lock()
+        # write changes to dbfile
+        self.dbfile.flush()
+        # write root_address to superblock
+        self._seek_superblock()
+        self._write_integer(root_address)
+        # write superblock changes to dbfile
+        self.dbfile.flush()
+        self.unlock()
+
+    def get_root_address(self):
+        '''
+        get root_address from superblock
+        :return:
+        '''
+        self._seek_superblock()
+        root_address = self._read_integer()
+        return root_address
